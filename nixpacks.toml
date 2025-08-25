@@ -1,0 +1,17 @@
+[phases.setup]
+nixPkgs = ['python310', 'pip', 'chromium', 'nss', 'freetype', 'freetype-dev', 'harfbuzz', 'ca-certificates', 'ttf-freefont']
+nixLibs = ['libuuid', 'libnss3', 'libatk-bridge2.0-0', 'libdrm2', 'libxkbcommon0', 'libxcomposite1', 'libxdamage1', 'libxrandr2', 'libgbm1', 'libxss1', 'libasound2']
+
+[phases.install]
+cmds = [
+  'pip install --upgrade pip',
+  'pip install -r requirements.txt',
+  'python -m playwright install-deps',
+  'python -m playwright install chromium'
+]
+
+[phases.build]
+cmds = ['echo "Build completed"']
+
+[start]
+cmd = 'gunicorn hybridapi:app -w 1 --worker-class uvicorn.workers.UvicornWorker --bind 0.0.0.0:$PORT'

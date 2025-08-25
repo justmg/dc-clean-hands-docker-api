@@ -1,0 +1,10 @@
+browser-use==0.5.5
+python-dotenv>=1.0.1
+pydantic>=2.7.0
+playwright>=1.46.0
+fastapi>=0.104.0
+uvicorn>=0.24.0
+httpx>=0.25.0
+gunicorn>=21.2.0
+email-validator>=2.0.0
+requests>=2.31.0

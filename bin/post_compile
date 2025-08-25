@@ -1,0 +1,53 @@
+#!/usr/bin/env bash
+# Install Playwright browsers and create proper symlinks for Heroku
+echo "Installing Playwright browsers..."
+python -m playwright install chromium
+
+# Create symlink from Playwright Chrome to system Chromium
+echo "Creating symlink to system Chromium..."
+PLAYWRIGHT_CHROME_PATH="/app/.cache/ms-playwright/chromium-1181/chrome-linux/chrome"
+SYSTEM_CHROMIUM="/usr/bin/chromium-browser"
+SNAP_CHROMIUM="/snap/bin/chromium"
+
+# Find system Chrome/Chromium
+if [ -f "$SYSTEM_CHROMIUM" ]; then
+    echo "✅ Found system chromium-browser at $SYSTEM_CHROMIUM"
+    CHROME_EXEC="$SYSTEM_CHROMIUM"
+elif [ -f "$SNAP_CHROMIUM" ]; then
+    echo "✅ Found snap chromium at $SNAP_CHROMIUM"
+    CHROME_EXEC="$SNAP_CHROMIUM"
+else
+    echo "❌ No system Chrome found, checking other locations..."
+    # Check other possible locations
+    for path in /usr/bin/google-chrome-stable /usr/bin/google-chrome /usr/bin/chromium /opt/google/chrome/chrome; do
+        if [ -f "$path" ]; then
+            echo "✅ Found Chrome at $path"
+            CHROME_EXEC="$path"
+            break
+        fi
+    done
+fi
+
+# Create symlink if we have a system Chrome
+if [ -n "$CHROME_EXEC" ]; then
+    echo "Creating symlink: $PLAYWRIGHT_CHROME_PATH -> $CHROME_EXEC"
+    mkdir -p "$(dirname "$PLAYWRIGHT_CHROME_PATH")"
+    ln -sf "$CHROME_EXEC" "$PLAYWRIGHT_CHROME_PATH"
+    
+    # Verify the symlink was created
+    if [ -L "$PLAYWRIGHT_CHROME_PATH" ]; then
+        echo "✅ Symlink created successfully!"
+        echo "Symlink target: $(readlink "$PLAYWRIGHT_CHROME_PATH")"
+        ls -la "$PLAYWRIGHT_CHROME_PATH"
+    else
+        echo "❌ Failed to create symlink"
+    fi
+else
+    echo "❌ No Chrome executable found, browser automation will fail"
+fi
+
+# List what we have in the Chrome directory
+echo "Contents of Chrome directory:"
+ls -la "$(dirname "$PLAYWRIGHT_CHROME_PATH")" 2>/dev/null || echo "Directory not found"
+
+echo "Playwright setup completed!"
