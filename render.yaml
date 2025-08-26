@@ -1,13 +1,25 @@
 services:
   - type: web
     name: dc-clean-hands-api
-    env: python
-    plan: free
-    buildCommand: pip install -r requirements.txt
-    startCommand: uvicorn power_automate_api:app --host 0.0.0.0 --port $PORT
+    runtime: docker
+    plan: starter
+    region: oregon
+    branch: master
+    dockerfilePath: ./Dockerfile
+    dockerContext: ./
+    healthCheckPath: /health
+    autoDeploy: true
     envVars:
-      - key: PYTHON_VERSION
-        value: 3.12.0
+      - key: PORT
+        value: 8000
+      - key: PYTHONUNBUFFERED
+        value: 1
       - key: LOG_LEVEL
         value: INFO
-    healthCheckPath: /health
+    scaling:
+      minInstances: 1
+      maxInstances: 1
+    disk:
+      name: dc-clean-hands-storage
+      mountPath: /app/artifacts
+      sizeGB: 1
