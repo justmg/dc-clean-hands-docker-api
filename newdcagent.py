@@ -263,18 +263,39 @@ async def handle_security_warning(page: Page) -> None:
 
 
 def detect_status_from_text(text: str) -> Literal["compliant", "noncompliant", "unknown"]:
-    # Check for non-compliant patterns first (more specific)
+    # Key insight: If page offers to "request a Notice of Non-Compliance", 
+    # it means the entity is currently COMPLIANT (otherwise they'd already have the notice)
+    
+    # Check for explicit compliance first (handle common page phrasing)
+    if re.search(r"\bthis\s+taxpayer\s+is\s+currently\s+compliant\b", text, re.I):
+        return "compliant"
+    if re.search(r"\bin\s+compliance\b", text, re.I):
+        return "compliant"
+    if re.search(r"\bis\s+compliant\b", text, re.I):
+        return "compliant"
+    
+    # Check if page offers to request non-compliance notice (means currently compliant)
+    if re.search(r"request.*notice.*non[-\s]?compliance", text, re.I):
+        return "compliant"
+    if re.search(r"click here to request.*non[-\s]?compliance", text, re.I):
+        return "compliant"
+    
+    # Check for explicit non-compliance status
     if re.search(r"\bnot\s+in\s+compliance\b", text, re.I):
         return "noncompliant"
-    if re.search(r"\bnon[-\s]?compliant\b", text, re.I):
+    if re.search(r"\bis\s+not\s+compliant\b", text, re.I):
         return "noncompliant"
     if re.search(r"\bnot\s+compliant\b", text, re.I):
         return "noncompliant"
-    # Then check for compliant (less specific, might match "non-compliant")
-    if re.search(r"\bin\s+compliance\b", text, re.I):
+    
+    # Generic compliant check (but avoid false positives from "non-compliant" / "noncompliance")
+    if (
+        re.search(r"\bcompliant\b", text, re.I)
+        and not re.search(r"\bnon[-\s]?compliant\b", text, re.I)
+        and not re.search(r"\bnon[-\s]?compliance\b", text, re.I)
+    ):
         return "compliant"
-    if re.search(r"\bcompliant\b", text, re.I) and not re.search(r"\bnon", text, re.I):
-        return "compliant"
+    
     return "unknown"
 
 
@@ -592,7 +613,40 @@ async def run_workflow(notice: str, last4: str, headless: bool, screenshots: boo
     )
 
     async with async_playwright() as pw:
-        browser: Browser = await pw.chromium.launch(headless=headless)
+        # Detect environment and configure browser accordingly
+        browser_args = []
+        executable_path = None
+        
+        # Check for Heroku environment
+        if os.getenv("DYNO") or os.path.exists("/app"):
+            # Heroku environment - use Chrome for Testing buildpack
+            if os.path.exists("/app/.chrome-for-testing/chrome-linux64/chrome"):
+                executable_path = "/app/.chrome-for-testing/chrome-linux64/chrome"
+            # Heroku-specific args for sandboxing
+            browser_args = [
+                "--no-sandbox",
+                "--disable-dev-shm-usage",
+                "--disable-gpu",
+                "--disable-extensions",
+                "--disable-background-timer-throttling",
+                "--disable-backgrounding-occluded-windows",
+                "--disable-renderer-backgrounding"
+            ]
+        
+        # Launch browser with appropriate configuration
+        if executable_path:
+            logger.info(f"Using Chrome at: {executable_path}")
+            browser: Browser = await pw.chromium.launch(
+                headless=headless,
+                executable_path=executable_path,
+                args=browser_args
+            )
+        else:
+            logger.info("Using default Playwright Chromium")
+            browser: Browser = await pw.chromium.launch(
+                headless=headless,
+                args=browser_args if browser_args else None
+            )
         context: BrowserContext = await browser.new_context(accept_downloads=True)
         page: Page = await context.new_page()
 
@@ -636,7 +690,19 @@ async def run_workflow(notice: str, last4: str, headless: bool, screenshots: boo
             body_text = None
         
         logger.info(f"Page text snippet: {(body_text or '')[:200]}...")
-        status = detect_status_from_text(body_text or "")
+        
+        # Key insight: Determine compliance status based on what certificate is offered
+        # Use regex to allow minor wording variations (e.g., suffixes like "for this taxpayer")
+        if re.search(r"click\s*here\s*to\s*request\s*a\s*current\s*certificate\s*of\s*clean\s*hands", (body_text or ""), re.I):
+            logger.info("Status: COMPLIANT (offers to request current certificate)")
+            status = "compliant"
+        elif re.search(r"click\s*here\s*to\s*request.*notice\s*of\s*non[-\s]?compliance", (body_text or ""), re.I):
+            logger.info("Status: COMPLIANT (offers to request non-compliance notice - means currently compliant)")
+            status = "compliant"
+        else:
+            status = detect_status_from_text(body_text or "")
+            logger.info(f"Status detected from text analysis: {status}")
+        
         result.status = status
         result.message = "Detected compliance status from page." if status != "unknown" else "Could not detect compliance status."
 
@@ -697,6 +763,13 @@ async def run_workflow(notice: str, last4: str, headless: bool, screenshots: boo
                         route_state["path"] = got
 
         result.pdf_path = route_state.get("path")
+        
+        # Final status correction: If we downloaded a PDF, the entity is compliant
+        # (The system only allows downloading certificates for compliant entities)
+        if result.pdf_path and Path(result.pdf_path).exists():
+            logger.info(f"PDF successfully downloaded: {result.pdf_path} - Status corrected to COMPLIANT")
+            result.status = "compliant" 
+            result.message = "Status confirmed: COMPLIANT (certificate downloaded successfully)"
 
         await context.close()
         await browser.close()
