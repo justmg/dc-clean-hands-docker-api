@@ -1,1 +1,1 @@
-web: uvicorn power_automate_api:app --host 0.0.0.0 --port $PORT --workers 1
+web: gunicorn power_automate_api:app -w 1 -k uvicorn.workers.UvicornWorker --bind 0.0.0.0:$PORT --timeout 300
