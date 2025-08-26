@@ -1,36 +1,14 @@
-# Use Python 3.12 slim image
-FROM python:3.12-slim
+# Use Microsoft Playwright image which includes browsers and dependencies
+FROM mcr.microsoft.com/playwright/python:v1.54.0-noble
 
 # Set environment variables
 ENV PYTHONUNBUFFERED=1
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV PORT=8000
 
-# Install system dependencies for Chrome and Playwright
+# Install additional system dependencies
 RUN apt-get update && apt-get install -y \
-    wget \
-    gnupg \
-    ca-certificates \
     curl \
-    fonts-liberation \
-    libasound2 \
-    libatk-bridge2.0-0 \
-    libatk1.0-0 \
-    libatspi2.0-0 \
-    libcups2 \
-    libdbus-1-3 \
-    libdrm2 \
-    libgtk-3-0 \
-    libnspr4 \
-    libnss3 \
-    libx11-xcb1 \
-    libxcomposite1 \
-    libxdamage1 \
-    libxfixes3 \
-    libxrandr2 \
-    libxss1 \
-    libxtst6 \
-    xdg-utils \
     && rm -rf /var/lib/apt/lists/*
 
 # Create app directory
@@ -42,9 +20,7 @@ COPY requirements.txt .
 # Install Python dependencies
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Install Playwright browsers
-RUN playwright install chromium && \
-    playwright install-deps chromium
+# Playwright browsers are pre-installed in the base image
 
 # Copy application code
 COPY power_automate_api.py .
