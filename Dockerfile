@@ -38,4 +38,4 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
     CMD curl -f http://localhost:$PORT/health || exit 1
 
 # Run the application
-CMD ["sh", "-c", "gunicorn power_automate_api:app -w 1 -k uvicorn.workers.UvicornWorker --bind 0.0.0.0:$PORT --timeout 300 --keep-alive 2 --max-requests 100"]
+CMD ["sh", "-c", "gunicorn power_automate_api:app -w 1 -k uvicorn.workers.UvicornWorker --bind 0.0.0.0:$PORT --timeout 600 --keep-alive 5 --max-requests 100 --graceful-timeout 600"]

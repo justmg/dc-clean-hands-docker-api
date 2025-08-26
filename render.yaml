@@ -16,6 +16,8 @@ services:
         value: 1
       - key: LOG_LEVEL
         value: INFO
+      - key: REQUEST_TIMEOUT
+        value: 600
     scaling:
       minInstances: 1
       maxInstances: 1
